@@ -32,8 +32,9 @@ tc (g, (Or i d)) = case (tc (g, i), tc (g, d)) of
   _ -> error "Type mismatch"
 tc (g, (Not b)) = case tc (g, b) of
   _ -> Bool
-tc (g, (Let (i, t) a c)) = tc ((i, t):g, c)
-
+tc (g, (Let (i, t) a c))
+  | t == tc (g, a) = tc ((i, t):g, c)
+  |otherwise = error "Type mismatch"
 lookup :: Gamma -> String -> Type
 lookup [] s = error "Free variable"
 lookup ((id, t):xs) s 
