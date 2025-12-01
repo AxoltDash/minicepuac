@@ -1,14 +1,13 @@
 module Main where
 
-import Desugar
 import Grammar
 import Interp
 import Lexer
+import Checker
 import System.IO (hFlush, stdout)
-import Control.Exception (catch, SomeException)
+import Control.Exception (catch, ErrorCall(..), evaluate)
 
-repl =
-  do
+repl = do
     putStr "> "
     hFlush stdout
     input <- getLine
@@ -24,15 +23,21 @@ repl =
 
 eval :: String -> IO ()
 eval input = catch 
-  (putStrLn (show $ interp $ desugar $ parse $ lexer input))
-  (\e -> putStrLn $ "Error: " ++ show (e :: SomeException))
+  (do
+    let ast = parse $ lexer input
+    _ <- evaluate $ tc ([], ast)  -- Verificación de tipos (forzada)
+    putStrLn (show $ interp ast))
+  (\(ErrorCall msg) -> putStrLn $ "Error: " ++ msg)
 
 load :: String -> IO ()
 load filepath = catch
   (do
     src <- readFile filepath
-    putStrLn (show $ interp $ desugar $ parse $ lexer src))
-  (\e -> putStrLn $ "Error al cargar el archivo " ++ show (e :: SomeException))
+    let ast = parse $ lexer src
+    _ <- evaluate $ tc ([], ast)  -- Verificación de tipos (forzada)
+    putStrLn (show $ interp ast))
+  (\(ErrorCall msg) -> putStrLn $ "Error: " ++ msg)
+
 
 run =
   do
@@ -49,3 +54,5 @@ run =
 
 main :: IO ()
 main = run
+
+
