@@ -14,27 +14,28 @@ tc (_, (Boolean b)) = Bool
 tc (g, Id s) = lookup g s
 tc (g, (Add i d)) = case (tc (g, i), tc (g, d)) of
   (Number, Number) -> Number
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator + : expected (Number, Number), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (Sub i d)) = case (tc (g, i), tc (g, d)) of
   (Number, Number) -> Number
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator - : expected (Number, Number), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (Mul i d)) = case (tc (g, i), tc (g, d)) of
   (Number, Number) -> Number
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator * : expected (Number, Number), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (Div i d)) = case (tc (g, i), tc (g, d)) of
   (Number, Number) -> Number
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator / : expected (Number, Number), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (And i d)) = case (tc (g, i), tc (g, d)) of
   (Bool, Bool) -> Bool
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator && : expected (Bool, Bool), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (Or i d)) = case (tc (g, i), tc (g, d)) of
   (Bool, Bool) -> Bool
-  _ -> error "Type mismatch"
+  (t1, t2) -> error $ "Bad operand types for operator || : expected (Bool, Bool), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
 tc (g, (Not b)) = case tc (g, b) of
-  _ -> Bool
+  Bool -> Bool
+  t -> error $ "Bad operand types for operator not: expected Bool, got (" ++ show t ++ ")"
 tc (g, (Let (i, t) a c))
   | t == tc (g, a) = tc ((i, t):g, c)
-  |otherwise = error "Type mismatch"
+  | otherwise = error $ "Incompatible types in variable " ++ "\"" ++ i ++"\"" ++ ": expected " ++ show t ++ ", got " ++ show (tc (g, a))
 lookup :: Gamma -> String -> Type
 lookup [] s = error "Free variable"
 lookup ((id, t):xs) s 
