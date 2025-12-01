@@ -36,6 +36,21 @@ tc (g, (Not b)) = case tc (g, b) of
 tc (g, (Let (i, t) a c))
   | t == tc (g, a) = tc ((i, t):g, c)
   | otherwise = error $ "Incompatible types in variable " ++ "\"" ++ i ++"\"" ++ ": expected " ++ show t ++ ", got " ++ show (tc (g, a))
+tc (g, (Lambda (Arrow dom codom) i b))
+  | codom == tc ((i, dom):g, b) = (Arrow dom codom)
+  | otherwise = error $ "Incompatible types in function return: expected " ++ show codom ++ ", got " ++ show (tc ((i, dom):g, b))
+tc (g, (App f a)) = 
+  let tf = tc (g, f)
+      ta = tc (g, a)
+  in case tf of
+    Arrow dom codom -> 
+      if ta == dom 
+        then codom 
+        else error $ "Type mismatch: expected argument of type " ++ show dom ++ ", got " ++ show ta
+    t -> error $ "Cannot apply to: " ++ show t
+tc (g, (Let (i, t) a c))
+  | t == tc (g, a) = tc ((i, t):g, c)
+  | otherwise = error $ "Incompatible types in variable " ++ "\"" ++ i ++"\"" ++ ": expected " ++ show t ++ ", got " ++ show (tc (g, a))
 lookup :: Gamma -> String -> Type
 lookup [] s = error "Free variable"
 lookup ((id, t):xs) s 

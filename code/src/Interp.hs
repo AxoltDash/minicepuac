@@ -9,6 +9,7 @@ import Data.Maybe (Maybe)
 data Value
   = NumV Double 
   | BooleanV Bool
+  | Closure String ASA Env
 
 -- Configuraciones del sistema de transiciones
 type Config = (ASA, Env) 
@@ -36,6 +37,9 @@ step (And i d, env) = BooleanV ((unboxBool $ step(i, env)) && (unboxBool $ step(
 step (Or i d, env) = BooleanV ((unboxBool $ step(i, env)) && (unboxBool $ step(d, env)))
 step (Let (i,_) a b, env) = let a' = step (a, env)
   in step (b, (i, a'):env)
+step (Lambda _ x b, env) = Closure x b env
+step (App f a, env) = case step (f, env) of
+    Closure x b env' -> let a' = step (a, env) in step (b, (x, a'):env')
 
 unboxNum :: Value -> Double
 unboxNum (NumV n) = n

@@ -19,6 +19,15 @@ data Token
   | TokenNumber
   | TokenBoolean
   | TokenColon
+  | TokenLambda
+  | TokenArrow
+  | TokenLCurly
+  | TokenPipe
+  | TokenRCurly
+  | TokenEqEq
+  | TokenNeq
+  | TokenGT
+  | TokenGE
   deriving (Show, Eq)
 
 lexer :: String -> [Token]
@@ -28,6 +37,10 @@ lexer input@(c:cs)
   | isSpace c = lexer cs
   | take 2 input == "&&" = TokenAnd : lexer (drop 2 input)
   | take 2 input == "||" = TokenOr : lexer (drop 2 input)
+  | take 2 input == "==" = TokenEqEq : lexer (drop 2 input)
+  | take 2 input == "!=" = TokenNeq : lexer (drop 2 input)
+  | take 2 input == ">=" = TokenGE : lexer (drop 2 input)
+  | take 2 input == "->" = TokenArrow : lexer (drop 2 input)
   | c == '(' = TokenLParen   : lexer cs
   | c == ':' = TokenColon    : lexer cs 
   | c == ')' = TokenRParen   : lexer cs
@@ -35,6 +48,10 @@ lexer input@(c:cs)
   | c == '-' = TokenMinus    : lexer cs
   | c == '*' = TokenMul      : lexer cs
   | c == '/' = TokenSlash    : lexer cs
+  | c == '{' = TokenLCurly   : lexer cs
+  | c == '}' = TokenRCurly   : lexer cs
+  | c == '|' = TokenPipe     : lexer cs
+  | c == '>' = TokenGT       : lexer cs
   | c == '#' = case cs of
                  ('t':rest) -> TokenBool True : lexer rest
                  ('f':rest) -> TokenBool False : lexer rest
@@ -55,6 +72,7 @@ lexKeywordOrId lexeme = case lexeme of
   "not" -> TokenNot
   "number" -> TokenNumber
   "boolean" -> TokenBoolean
+  "lambda" -> TokenLambda
   _      -> TokenId lexeme
 
 isAsciiLetter :: Char -> Bool
