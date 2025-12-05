@@ -42,7 +42,7 @@ load filepath = catch
 run =
   do
     putStrLn "=========================================="
-    putStrLn "  Cepuac v1.0 - Mini Lisp Interprete"
+    putStrLn "  Caupec v1.0 - Mini Cepuac Interprete"
     putStrLn "=========================================="
     putStrLn ""
     putStrLn "Comandos disponibles:"
