@@ -48,14 +48,21 @@ ASA :  var { Id $1 }
      | '(' "&&" ASA ASA ')' { And $3 $4 }
      | '(' "||" ASA ASA ')' { Or $3 $4 }
      | '(' "not" ASA ')' { Not $3 }
-     | '(' "lambda" ':' Type "->" Type '(' var ')' ASA ')' { Lambda (Arrow $4 $6) $8 $10 }
-     | '(' "let" '(' var ':' Type ASA ')' ASA ')' { Let ($4, $6) $7 $9 }
+     | '(' "lambda" ':' Arrow '(' var ')' ASA ')' { Lambda $4 $6 $8 }
+     | '(' "let" '(' var ':' Type ASA ')' ASA ')' { Let ($4, (wrapIfPrimitive $6)) $7 $9 }
      | '(' ASA ASA ')' { App $2 $3 }
 
-Type: "number" { Refinement Number MaybeZero }
-    | "boolean" { Refinement Boolean NonZero }
-    | '{' var ':' Type '|' Predicate '}' { Refinement $4 $6 }
-    | '(' Type "->" Type ')' { Arrow $2 $4 }
+Type : '(' Type ')' { $2 }
+    | PrimitiveType { $1 }
+    | Arrow { $1 }
+    | RefinementType { $1 }
+
+PrimitiveType: "number" { Number }
+    |          "boolean" { Boolean }  
+
+Arrow: Type "->" Type { Arrow ( wrapIfPrimitive $1) (wrapIfPrimitive $3) }
+
+RefinementType: '{' var ':' Type '|' Predicate '}' { Refinement $4 $6 }
 
 Predicate: var "==" double { if $3 == 0 then Zero else parseError [] }
          | var "!=" double { if $3 == 0 then NonZero else parseError [] }
@@ -64,7 +71,13 @@ Predicate: var "==" double { if $3 == 0 then Zero else parseError [] }
 {
 
 parseError :: [Token] -> a
-parseError _ = error "Parse error"
+parseError a = error $ show a
+
+wrapIfPrimitive :: Type -> Type
+wrapIfPrimitive t = case t of
+  Number -> Refinement Number MaybeZero
+  Boolean -> Refinement Boolean MaybeZero
+  _ -> t
 
 data Type
   = Boolean

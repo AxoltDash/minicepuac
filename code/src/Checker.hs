@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Checker where
 import Grammar hiding (lookup)
 import Prelude hiding (lookup)
@@ -46,40 +47,40 @@ tc (g, (Or i d)) = case (tc (g, i), tc (g, d)) of
 tc (g, (Not b)) = case tc (g, b) of
   Refinement Boolean _ -> Refinement Boolean NonZero
   Refinement t _ -> error $ "Bad operand types for operator not: expected Bool, got (" ++ show t ++ ")"
-tc (g, (Let (i, r) v b)) = let r' = evalRef $ getRef r
-                               rv = tc (g, v) 
-                               e = evalr r' rv 
-                               in tc ((i, r') : g, b)
-tc (g, (Lambda (Arrow dom codom) i b)) = let dom' = evalRef $ getRef dom 
-                                             codom' = evalRef $ getRef codom
-                                             in Arrow dom' codom'
+tc (g, (Let (i, r) v b)) = let !r' = solve r
+                               !rv = tc (g, v) 
+                               !e = evalr rv r'
+                                in tc ((i, rv) : g, b)
+tc (g, (Lambda (Arrow dom codom) i b)) = let !dom' = solve dom 
+                                             !codom' = solve codom
+                                              in Arrow dom' codom'
 tc (g, (App f a)) = case tc (g, f) of 
-                    (Arrow dom codom) -> let t = tc (g, a) 
-                                             e = evalr dom t
-                                            in codom  
-                    _ -> error "eesaf"
-                        
+                    (Arrow dom codom) -> let !t = tc (g, a) 
+                                             !e = evalr t dom
+                                              in codom  
+                    _ -> error "Cannot apply to a non-function"
 
-getRef :: Type -> Type 
-getRef Number = Refinement Number MaybeZero
-getRef Boolean = Refinement Boolean NonZero
-getRef r = r
-
-evalRef :: Type -> Type
-evalRef (Refinement Number p) = Refinement Number p 
-evalRef (Refinement Boolean p) = Refinement Boolean p 
-evalRef (Arrow dom codom) = let dom' = getRef $ evalRef dom 
-                                codom' = getRef $ evalRef codom 
+solve :: Type -> Type
+solve (Refinement Number p) = Refinement Number p 
+solve (Refinement Boolean p) = Refinement Boolean p 
+solve (Arrow dom codom) = let !dom' = solve dom 
+                              !codom' = solve codom 
                             in Arrow dom' codom'
-evalRef (Refinement r p) = let Refinement t p' = evalRef r in if (evalPred p' p) then (Refinement t p') else error "cepuac"
+solve (Refinement r p) = let Refinement t p' = solve r in 
+     if (evalPred p' p) 
+     then (Refinement t p') 
+     else error $ "Predicate mismatch: expected " ++ show p ++ ", got " ++ show p' ++ " in type " ++ show t
 
 evalr :: Type -> Type -> Type
-evalr (Refinement t1 p1) (Refinement t2 p2) = if ((t1 == t2) && (evalPred p1 p2)) then (Refinement t1 p1) else error "je je"
-evalr (Arrow dom1 codom1) (Arrow dom2 codom2) = let dom = evalr dom1 dom2 
-                                                    codom = evalr codom1 codom2 
+evalr (Refinement t1 p1) (Refinement t2 p2) = 
+  if ((t1 == t2) && (evalPred p1 p2)) 
+    then (Refinement t1 p1) 
+    else error $ "Type or predicate mismatch: expected type " ++ show t2 ++ " with predicate " ++ show p2 ++ ", got type " ++ show t1 ++ " with predicate " ++ show p1
+evalr (Arrow dom1 codom1) (Arrow dom2 codom2) = let !dom = evalr dom1 dom2 
+                                                    !codom = evalr codom1 codom2 
                                                   in Arrow dom codom
-evalr _ _ = error "ejejejejj"
-
+evalr (Refinement _ _) (Arrow dom codom) = error $ "Type mismatch: cannot match refinement type with function type (Arrow " ++ show dom ++ " " ++ show codom ++ ")"
+evalr (Arrow dom codom) (Refinement _ _) = error $ "Type mismatch: cannot match function type (Arrow " ++ show dom ++ " " ++ show codom ++ ") with refinement type"
 
 evalPred :: Predicate -> Predicate -> Bool
 evalPred NonZero MaybeZero = True
