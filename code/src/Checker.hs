@@ -35,9 +35,8 @@ tc (g, (Mul i d)) = case (tc (g, i), tc (g, d)) of
   (Refinement Number _, Refinement Number Zero) -> Refinement Number Zero
   (Refinement Number _, Refinement Number _) -> Refinement Number MaybeZero
   (Refinement t1 _, Refinement t2 _) -> error $ "Bad operand types for operator * : expected (Number, Number), got (" ++ show t1 ++ ", " ++ show t2 ++ ")"
--- La division embebida en el lenguaje no obliga a detener la division entre cero
 tc (g, (Div i d)) = case (tc (g, i), tc (g, d)) of
-  (_, Refinement Number Zero) -> error $ "This expression contain a division by zero."
+  (Refinement Number _, Refinement Number Zero) -> error $ "This expression contain a division by zero."
   (Refinement Number NonZero, Refinement Number _) -> Refinement Number NonZero
   (Refinement Number Zero, Refinement Number _) -> Refinement Number Zero
   (Refinement Number _, Refinement Number _) -> Refinement Number MaybeZero

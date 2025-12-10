@@ -302,7 +302,9 @@ happyReduction_22 (_ `HappyStk`
         _ `HappyStk`
         happyRest)
          = HappyAbsSyn9
-                 (Refinement happy_var_4 happy_var_6
+                 (case happy_var_4 of 
+                                                      Arrow _ _ -> parseError []
+                                                      _ -> Refinement happy_var_4 happy_var_6
         ) `HappyStk` happyRest
 
 happyReduce_23 = happySpecReduce_3  5# happyReduction_23
@@ -416,14 +418,14 @@ parse tks = happyRunIdentity happySomeParser where
 happySeq = happyDontSeq
 
 
+wrapIfPrimitive :: Type -> Type
+wrapIfPrimitive Number = Refinement Number MaybeZero
+wrapIfPrimitive Boolean = Refinement Boolean MaybeZero
+wrapIfPrimitive t = t
+
 parseError :: [Token] -> a
 parseError a = error $ show a
 
-wrapIfPrimitive :: Type -> Type
-wrapIfPrimitive t = case t of
-  Number -> Refinement Number MaybeZero
-  Boolean -> Refinement Boolean MaybeZero
-  _ -> t
 
 data Type
   = Boolean
