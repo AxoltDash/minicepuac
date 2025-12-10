@@ -1,3 +1,5 @@
+; Division segura, falla antes de interpretar si no se tiene una prueba 
+; que el denominador no es cero.
 (let (safeDiv : (number -> ({ y : number | y != 0 } -> number))
       (lambda : number -> ({ y : number | y != 0 } -> number) (x)
         (lambda : { y : number | y != 0 } -> number (y)
@@ -5,5 +7,5 @@
         )
       )
     )
-  ((safeDiv 10) 1)
+  ((safeDiv 10) 2)
 )

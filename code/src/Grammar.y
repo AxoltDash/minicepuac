@@ -62,7 +62,9 @@ PrimitiveType: "number" { Number }
 
 Arrow: Type "->" Type { Arrow ( wrapIfPrimitive $1) (wrapIfPrimitive $3) }
 
-RefinementType: '{' var ':' Type '|' Predicate '}' { Refinement $4 $6 }
+RefinementType: '{' var ':' Type '|' Predicate '}' { case $4 of 
+                                                      Arrow _ _ -> parseError []
+                                                      _ -> Refinement $4 $6 }
 
 Predicate: var "==" double { if $3 == 0 then Zero else parseError [] }
          | var "!=" double { if $3 == 0 then NonZero else parseError [] }
@@ -70,14 +72,14 @@ Predicate: var "==" double { if $3 == 0 then Zero else parseError [] }
          | var ">=" double { if $3 == 0 then MaybeZero else parseError [] }
 {
 
+wrapIfPrimitive :: Type -> Type
+wrapIfPrimitive Number = Refinement Number MaybeZero
+wrapIfPrimitive Boolean = Refinement Boolean MaybeZero
+wrapIfPrimitive t = t
+
 parseError :: [Token] -> a
 parseError a = error $ show a
 
-wrapIfPrimitive :: Type -> Type
-wrapIfPrimitive t = case t of
-  Number -> Refinement Number MaybeZero
-  Boolean -> Refinement Boolean MaybeZero
-  _ -> t
 
 data Type
   = Boolean

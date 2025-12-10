@@ -21,7 +21,7 @@ instance Show Value where
   show (NumV n) = show n
   show (BoolV True) = "#t"
   show (BoolV False) = "#f"
-
+-- Interprete de paso grande.
 step :: Config -> Value
 step (ANum n, _,env) = NumV n
 step (ABool b, _,env) = BoolV b

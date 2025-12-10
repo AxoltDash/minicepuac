@@ -35,6 +35,7 @@ lexer [] = []
 
 lexer input@(c:cs)
   | isSpace c = lexer cs
+  | c == ';'  = lexer (drop 1 $ dropWhile (/= '\n') input)
   | take 2 input == "&&" = TokenAnd : lexer (drop 2 input)
   | take 2 input == "||" = TokenOr : lexer (drop 2 input)
   | take 2 input == "==" = TokenEqEq : lexer (drop 2 input)

@@ -1,1 +1,0 @@
-(let (x: boolean 2) (|| #t x))
