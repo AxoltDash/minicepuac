@@ -1,153 +1,58 @@
 {-# LANGUAGE BangPatterns #-}
 module Interp where
-import Desugar hiding (lookup)
 import Grammar hiding (lookup)
 import Prelude hiding (lookup)
+import Checker hiding (lookup)
 import Lexer
 import Data.Maybe (Maybe)
 
--- Indica si una expresion se puede reducir y guarda el ambiente de definicion para las funciones
-data Tag
-  = Value
-  | Closure Env
-  | ASAT
-  deriving (Show, Eq)
-
 data Value
   = NumV Double 
-  | BooleanV Bool
-  | NilV
-  | LinV
-  | PairV Value Value 
-  | ClosureV
+  | BoolV Bool
+  | Closure String ASA Env
 
 -- Configuraciones del sistema de transiciones
-type Config = (ASA, Env, Tag) 
+type Config = (ASA, Type, Env) 
 
 -- Ambiente sobre el cual se evalua una expresion
-type Env = [(String, ASA, Tag)]
+type Env = [(String, Value)]
 
 instance Show Value where
   show (NumV n) = show n
-  show (BooleanV True) = "#t"
-  show (BooleanV False) = "#f"
-  show (NilV) = "[]"
-  show (PairV LinV (PairV x y)) = "(" ++ show x ++ "," ++ show y ++ ")"
-  show (PairV x y) = show $ auxshow (PairV x y)
-      where 
-        auxshow :: Value -> [Value]
-        auxshow (PairV x NilV) = [x]
-        auxshow (PairV x y) = x : auxshow y 
-  show (ClosureV) = "<procedure>"
-
-toValue :: ASA -> Value
-toValue (Num n) = NumV n
-toValue (Boolean b) = BooleanV b 
-toValue (Nil) = NilV
-toValue (Lin) = LinV
-toValue (Pair x y) = PairV (toValue x) (toValue y)
-toValue (Lambda _ _) = ClosureV
-
-step :: Config -> Config
-step (Num n, env, ASAT) = (Num n, env, Value) 
-step (Lin, env, ASAT) = (Lin, env, Value)
-step (Boolean b, env, ASAT) = (Boolean b, env, Value) 
-step (Nil, env, ASAT) = (Nil, env, Value)
-step (Pair _ (Pair Lin _), _, _) = error "Cannot append to a Pair"
-step (Pair x y, env, ASAT) = (Pair (getASA $ strict (x, env, ASAT)) (getASA $ strict (y, env, ASAT)), env, Value)
-step (Lambda v b, env, ASAT) = (Lambda v b, env, Closure env) -- La etiqueta (Tag) captura el ambiente de definicion
-
-step (Var x, env, ASAT) = case lookup x env of
-                      Just (v, tag)  -> (v, env, tag)
+  show (BoolV True) = "#t"
+  show (BoolV False) = "#f"
+-- Interprete de paso grande.
+step :: Config -> Value
+step (ANum n, _,env) = NumV n
+step (ABool b, _,env) = BoolV b
+step (Id x, _,env) = case lookup x env of
+                      Just v  -> v
                       Nothing -> error ("Variable " ++ x ++ " not found")
+step (Add i d, r,env) = NumV ((unboxNum $ step(i, r,env)) + (unboxNum $ step(d, r,env)))
+step (Sub i d, r,env) = NumV ((unboxNum $ step(i, r,env)) - (unboxNum $ step(d, r,env)))
+step (Mul i d, r,env) = NumV ((unboxNum $ step(i, r,env)) * (unboxNum $ step(d, r,env)))
+step (Div i d, r,env) = NumV ((unboxNum $ step(i, r,env)) / (unboxNum $ step(d, r,env)))
+step (Not b, r,env) = BoolV (not (unboxBool $ step(b, r,env)))
+step (And i d, r,env) = BoolV ((unboxBool $ step(i, r,env)) && (unboxBool $ step(d, r,env)))
+step (Or i d, r,env) = BoolV ((unboxBool $ step(i, r,env)) && (unboxBool $ step(d, r,env)))
+step (Let (i,_) a b, r,env) = let a' = step (a, r,env)
+  in step (b, r,(i, a'):env)
+step (Lambda _ x b, r,env) = Closure x b env
+step (App f a, r,env) = case step (f, r,env) of
+    Closure x b env' -> let a' = step (a, r,env) in step (b, r,(x, a'):env')
 
-step (Add (Num a) (Num b), env, ASAT) = (Num (a + b), env, Value)
-step (Add (Num a) b, env, ASAT) = (Add (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Add a b, env, ASAT) = (Add (getASA $ step (a, env, ASAT)) b, env, ASAT)
+unboxNum :: Value -> Double
+unboxNum (NumV n) = n
 
-step (And (Boolean a) (Boolean b), env, ASAT) = (Boolean (a && b), env, Value)
-step (And (Boolean a) b, env, ASAT) = (And (Boolean a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (And a b, env, ASAT) = (And (getASA $ step (a, env, ASAT)) b , env, ASAT)
-
-step (Or (Boolean a) (Boolean b), env, ASAT) = (Boolean (a || b), env, Value)
-step (Or (Boolean a) b, env, ASAT) = (Or (Boolean a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Or a b, env, ASAT) = (Or (getASA $ step (a, env, ASAT)) b , env, ASAT)
-
-step (Mul (Num a) (Num b), env, ASAT) = (Num (a * b), env, Value)
-step (Mul (Num a) b, env, ASAT) = (Mul (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Mul a b, env, ASAT) = (Mul (getASA $ step (a, env, ASAT)) b, env, ASAT)
-
-step (Div (Num a) (Num 0), env, ASAT) = error "Division by zero"
-step (Div (Num a) (Num b), env, ASAT) = (Num (a / b), env, Value)
-step (Div (Num a) b, env, ASAT) = (Div (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Div a b, env, ASAT) = (Div (getASA $ step (a, env, ASAT)) b, env, ASAT)
-
-step (Pow (Num a) (Num b), env, ASAT) = (Num (a ** b), env, Value)
-step (Pow (Num a) b, env, ASAT) = (Pow (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Pow a b, env, ASAT) = (Pow (getASA $ step (a, env, ASAT)) b, env, ASAT)
-
-step (Sqrt (Num a), env, ASAT)
-    | a < 0 = error "You can't take the square root of a number less than 0"
-    | otherwise = (Num (sqrt a), env, Value)
-step (Sqrt a, env, ASAT) = (Sqrt (getASA $ step (a, env, ASAT)), env, ASAT)
-
-step (If (Boolean True) t e, env, ASAT) = (t, env, ASAT)
-step (If (Boolean False) t e, env, ASAT) = (e, env, ASAT)
-step (If cond t e, env, ASAT) = (If (getASA $ step (cond, env, ASAT)) t e, env, ASAT)
-
-step (Gt (Num a) (Num b), env, ASAT) = (Boolean (a > b), env, Value)
-step (Gt (Num a) b, env, ASAT) = (Gt (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Gt a b, env, ASAT) = (Gt (getASA $ step (a, env, ASAT)) b, env, ASAT)
-
-step (Eq a b, env, ASAT) = case step (a, env, ASAT) of
-                          (a', _, ASAT) -> (Eq a' b, env, ASAT)
-                          (a', _, _) -> case step (b, env, ASAT) of -- Eq es polimorfico
-                                            (b', _, ASAT) -> (Eq a' b', env, ASAT)
-                                            (b', _, Value) -> (Boolean (a' == b'), env, Value)
-                                            (b', _, Closure _) -> (Boolean False, env, Value)
-
-step (Geq (Num a) (Num b), env, ASAT) = (Boolean (a >= b), env, Value)
-step (Geq (Num a) b, env, ASAT) = (Geq (Num a) (getASA $ step (b, env, ASAT)), env, ASAT)
-step (Geq a b, env, ASAT) = (Geq (getASA $ step (a, env, ASAT)) b, env, ASAT)
-
-step (Not (Boolean b), env, ASAT) = (Boolean (not b), env, Value)
-step (Not b, env, ASAT) = (Not (getASA $ step (b, env, ASAT)), env, ASAT)
-
-step (Fst (Pair Lin Nil), env, ASAT) = error "Empty list"
-step (Fst (Pair Lin (Pair x y)), env, ASAT) = let (Pair Lin (Pair x' y'), env', tag') = step (Pair Lin (Pair x y), env, ASAT) in (x', env', Value)
-step (Fst p, env, ASAT) = (Fst (getASA $ step (p, env, ASAT)), env, ASAT) 
-
-step (Snd (Pair Lin Nil), env, ASAT) = (Nil, env, Value)
-step (Snd (Pair Lin (Pair x y)), env, ASAT) = let (Pair Lin (Pair x' y'), env', tag') = step (Pair Lin (Pair x y), env, ASAT) in (y', env', Value)
-step (Snd p, env, ASAT) = (Snd (getASA $ step (p, env, ASAT)), env, ASAT) 
-
-step (App f a, env, ASAT) = case step (f, env, ASAT) of
-                (Lambda v b, _, Closure env') -> case step (a, env, ASAT) of -- refleja el enfoque ansioso de cepuac
-                        (a', _, ASAT) ->  (App f a', env, ASAT)
-                        (a', _, tag) -> let (b', _, tag') = strict (b, (v, a', tag):env', ASAT) in -- aisla la evalucion del cuerpo en el ambiente de la cerradura
-                            (b', env, tag') 
-                (f', _, ASAT) -> (App f' a, env, ASAT)
-                (f', _, Value) -> error ("Cannot apply to:" ++ show (toValue f')) -- f no se puede reducir y no es una lambda
-
--- Recupera la expresion (ASA) de una configuracion
-getASA :: Config -> ASA
-getASA (e, _, _) = e
+unboxBool :: Value -> Bool
+unboxBool (BoolV b) = b
 
 -- Resuelve variables a expresiones
-lookup :: String -> Env -> Maybe (ASA, Tag)
+lookup :: String -> Env -> Maybe Value
 lookup _ [] = Nothing
-lookup x ((y, v, t):env)
-  | x == y    = Just (v, t)
+lookup x ((y, v):env)
+  | x == y    = Just v
   | otherwise = lookup x env
 
--- Aisla la evalucion de una expresion
-strict :: Config -> Config 
-strict (e, env, ASAT) = let (e', env', tag') = step (e, env, ASAT) in strict (e', env', tag')
-strict (e, env, tag) = (e, env, tag)
-
-interpaux :: Config -> ASA
-interpaux (e, env, ASAT) = let (e', env', tag') = step (e, env, ASAT) in interpaux (e', env', tag')
-interpaux (e, env, tag) = e
-
-interp :: ASA -> Value
-interp e = toValue $ interpaux (e, [], ASAT)
+interp :: ASA -> Type -> Value
+interp e t = step (e, t, [])
